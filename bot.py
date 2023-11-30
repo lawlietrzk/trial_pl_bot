@@ -45,7 +45,7 @@ LOGIN_UNSUCCESSFUL_TEXT= """
 You do not have an account with Exness MT4
 """
 
-LOG_IN_SUCCESSFUL_TEXT= """
+LOGIN_SUCCESSFUL_TEXT= """
 Log in successful!
 """
 
@@ -66,8 +66,10 @@ the following steps:
 - Type your name
 - Select "Share Contact"
 """
-def send_login_message(login_ids):
-    
+def send_login_id_message(login_ids):
+    login_ids = [str(i) for i in login_ids]
+    return "You have successfully logged into the following account(s): " +", ".join(login_ids)
+
 
 async def contact_handler(update: Update, context: CallbackContext):
     user_id_from_message = update.message.from_user.id 
@@ -87,7 +89,8 @@ async def contact_handler(update: Update, context: CallbackContext):
 
             df.to_csv(contact_data_path, index=False) 
 
-            await update.message.reply_text(send_login_message(login_ids), parse_mode=ParseMode.HTML)
+            await update.message.reply_text(LOGIN_SUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(send_login_id_message(login_ids), parse_mode=ParseMode.HTML)
             await update.message.reply_text(POST_LOGIN_TEXT, parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_text(LOGIN_UNSUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)

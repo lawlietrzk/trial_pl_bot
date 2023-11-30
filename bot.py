@@ -66,6 +66,8 @@ the following steps:
 - Type your name
 - Select "Share Contact"
 """
+def send_login_message(login_ids):
+    
 
 async def contact_handler(update: Update, context: CallbackContext):
     user_id_from_message = update.message.from_user.id 
@@ -75,38 +77,23 @@ async def contact_handler(update: Update, context: CallbackContext):
     if contact and contact.user_id == user_id_from_message:
         contact_number = np.int64(contact.phone_number)
 
-        user_data_path = 'user_data.csv' 
-        df = pd.read_csv(user_data_path)
+        contact_data_path = 'contact_data.csv' 
+        df = pd.read_csv(contact_data_path)
 
         # Check if contact number has an account
-        if contact_number in df['phone_num'].values:
-            df.loc[df['phone_num'] == contact_number, 'logged_in'] = 1
-            df.loc[df['phone_num'] == contact_number, 'user_id'] = str(user_id_from_message)
-            df.to_csv(user_data_path, index=False) 
+        if contact_number in df['contact_number'].values:
+            df.loc[df['contact_number'] == contact_number, 'telegram_user_id'] = str(user_id_from_message)
+            login_ids = df.loc[df['contact_number'] == contact_number, 'login'].tolist()
 
-            await update.message.reply_text(LOG_IN_SUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
+            df.to_csv(contact_data_path, index=False) 
+
+            await update.message.reply_text(send_login_message(login_ids), parse_mode=ParseMode.HTML)
             await update.message.reply_text(POST_LOGIN_TEXT, parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_text(LOGIN_UNSUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(SHARE_OWN_CONTACT_TEXT, parse_mode=ParseMode.HTML)
 
-async def send_messages(context: CallbackContext):
-    directory_path = ""
-    file = glob.glob(f"*_pl.csv")[0]
-    df = pd.read_csv(file)
-
-    user_id_from_message=context._user_id
-    print(user_id_from_message)
-    print(context._chat_id)
-
-    data = df.loc[df['user_id'] == user_id_from_message, 'pl']
-
-    job = context.job
-    await context.bot.send_message(job.data, text=f"Your Profit/Loss for the week of xx is : {data}")
-    # await context.bot.send_message(chat_id=context, text=f"Your Profit/Loss for the week of xx is : {data}")
-
-    # await update.message.reply_text(f"Your Profit/Loss for the week of xx is : {data}")
 
 async def start_handle(update: Update, context: CallbackContext):
     await update.message.reply_text(INTRO_TEXT, parse_mode=ParseMode.HTML)

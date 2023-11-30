@@ -1,109 +1,80 @@
 import os
 import logging
-import asyncio
-import traceback
 import html
-import json
-import tempfile
 from pathlib import Path
-from datetime import datetime
-# import phonenumbers
 import pandas as pd
-import numpy as np
-import glob
 
 import telegram
 from telegram import (
     Update,
-    User,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     BotCommand
 )
 from telegram.ext import (
-    Updater,
     Application,
     ApplicationBuilder,
     CallbackContext,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     filters
 )
-from telegram.constants import ParseMode, ChatAction
+from telegram.constants import ParseMode
 
 import config
+import custom_texts
 
-
-logger = logging.getLogger(__name__)
-
-SHARE_OWN_CONTACT_TEXT= """
-Please share your own contact using the 'Contact' feature.
-"""
-
-LOGIN_UNSUCCESSFUL_TEXT= """
-You do not have an account with Exness MT4
-"""
-
-LOGIN_SUCCESSFUL_TEXT= """
-Log in successful!
-"""
-
-POST_LOGIN_TEXT = """
-You will receive PnL updates every Tuesday between 9 am to 10 am CST.
-"""
-
-INTRO_TEXT = """
-Hello! I'm a Trade bot. I provide weekly updates
-on your Profit/Loss information from your MT4
-account.
-
-To start, login with your contact number by executing
-the following steps:
-
-- Select the clip icon
-- Select "Contact"
-- Type your name
-- Select "Share Contact"
-"""
 def send_login_id_message(login_ids):
-    login_ids = [str(i) for i in login_ids]
+    """
+    Gets all login_ids for one phone number and sends message.
+    """
     return "You have successfully logged into the following account(s): " +", ".join(login_ids)
 
 
 async def contact_handler(update: Update, context: CallbackContext):
-    user_id_from_message = update.message.from_user.id 
+    user_id_from_message = int(update.message.from_user.id)
     contact = update.message.contact 
     
     # Check if the phone number belongs to the telegram user
     if contact and contact.user_id == user_id_from_message:
-        contact_number = np.int64(contact.phone_number)
+        contact_number = str(contact.phone_number).strip('+')
 
         contact_data_path = 'contact_data.csv' 
-        df = pd.read_csv(contact_data_path)
+        df = pd.read_csv(contact_data_path, dtype={'login': str,
+                                                    'contact_number' : str,
+                                                    'telegram_user_id': str})
 
         # Check if contact number has an account
         if contact_number in df['contact_number'].values:
             df.loc[df['contact_number'] == contact_number, 'telegram_user_id'] = str(user_id_from_message)
             login_ids = df.loc[df['contact_number'] == contact_number, 'login'].tolist()
 
+            # Store Telegram user_id for the corresponding contact number
             df.to_csv(contact_data_path, index=False) 
 
-            await update.message.reply_text(LOGIN_SUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
+            # Send Log in successful messages
+            await update.message.reply_text(custom_texts.LOGIN_SUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
             await update.message.reply_text(send_login_id_message(login_ids), parse_mode=ParseMode.HTML)
-            await update.message.reply_text(POST_LOGIN_TEXT, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(custom_texts.POST_LOGIN_TEXT, parse_mode=ParseMode.HTML)
         else:
-            await update.message.reply_text(LOGIN_UNSUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
+            # If contact number of the texter doesn't exist in contact_data.csv
+            await update.message.reply_text(custom_texts.LOGIN_UNSUCCESSFUL_TEXT, parse_mode=ParseMode.HTML)
     else:
-        await update.message.reply_text(SHARE_OWN_CONTACT_TEXT, parse_mode=ParseMode.HTML)
+        # If contact has shared someone else's contact number
+        await update.message.reply_text(custom_texts.SHARE_OWN_CONTACT_TEXT, parse_mode=ParseMode.HTML)
 
 
 async def start_handle(update: Update, context: CallbackContext):
-    await update.message.reply_text(INTRO_TEXT, parse_mode=ParseMode.HTML)
+    """
+    Response to "/start" command or 
+    when the user interacts with the chatbot for the first time
+    """
+    await update.message.reply_text(custom_texts.INTRO_TEXT, parse_mode=ParseMode.HTML)
 
 async def post_init(application: Application):
+    """
+    Creates command menu
+    """
     await application.bot.set_my_commands([
-        BotCommand("/start", "Login to account")
+        BotCommand("/start", custom_texts.START_HINT)
     ])
 
 def run_bot() -> None:
@@ -119,7 +90,10 @@ def run_bot() -> None:
 
     user_filter = filters.ALL
 
+    # Catches all texts of the type CONTACT
     application.add_handler(MessageHandler(filters.CONTACT, contact_handler))
+
+    # Catches all "/start" command
     application.add_handler(CommandHandler("start", start_handle, filters=user_filter))
 
     application.run_polling()
